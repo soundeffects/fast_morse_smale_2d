@@ -1,0 +1,19 @@
+[package]
+name = "fast_morse_smale"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bytemuck = "1.15.0"
+flume = "0.11.0"
+wgpu = "0.19"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_error_panic_hook = "0.1"
+console_log = "1.0"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+env_logger = "0.11"
+pollster = "0.3"
