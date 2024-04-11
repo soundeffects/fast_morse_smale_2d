@@ -1,14 +1,18 @@
 use bytemuck::cast_slice;
 use flume::bounded;
+use image::GrayImage;
 use std::borrow::Cow;
-use std::mem::size_of_val;
-use wgpu::util::{BufferInitDescriptor, DeviceExt};
+use std::mem::size_of;
 use wgpu::{
     BindGroupDescriptor, BindGroupEntry, BufferAddress, BufferDescriptor, BufferUsages,
     CommandEncoderDescriptor, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor,
-    Device, DeviceDescriptor, Features, Instance, Limits, Maintain, MapMode, Queue,
-    RequestAdapterOptions, ShaderModuleDescriptor, ShaderSource,
+    Device, DeviceDescriptor, Extent3d, Features, ImageCopyTexture, ImageDataLayout, Instance,
+    Limits, Maintain, MapMode, Origin3d, Queue, RequestAdapterOptions, ShaderModuleDescriptor,
+    ShaderSource, TextureAspect, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
 };
+
+#[cfg(test)]
+mod tests;
 
 pub struct MorseSmaleSolver {
     device: Device,
@@ -63,24 +67,66 @@ impl MorseSmaleSolver {
         })
     }
 
-    pub async fn run(&self, input: Vec<u32>) -> Result<Vec<u32>, String> {
-        let slice = input.as_slice();
+    pub async fn with_image(&self, image: GrayImage) -> Result<Vec<u8>, String> {
+        let dimensions = image.dimensions();
 
-        // Instantiate the buffer on the CPU which will receive the final results.
-        let cpu_buffer = self.device.create_buffer(&BufferDescriptor {
-            label: Some("Uninitialized CPU Buffer"),
-            size: size_of_val(slice) as BufferAddress,
-            // Buffer can be read outside of shaders, buffer can be a copy destination
-            usage: BufferUsages::MAP_READ | BufferUsages::COPY_DST,
+        let extent = Extent3d {
+            width: dimensions.0,
+            height: dimensions.1,
+            // All textures are stored as 3D, we represent our 2D texture
+            // by setting depth to 1.
+            depth_or_array_layers: 1,
+        };
+
+        let texture = self.device.create_texture(&TextureDescriptor {
+            label: Some("Morse Function As Texture"),
+            size: extent,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: TextureFormat::R8Unorm,
+            // TEXTURE_BINDING tells wgpu that we want to use this texture in shaders
+            // COPY_DST means that we want to copy data to this texture
+            usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+
+        self.queue.write_texture(
+            ImageCopyTexture {
+                texture: &texture,
+                mip_level: 0,
+                origin: Origin3d::ZERO,
+                aspect: TextureAspect::All,
+            },
+            &image,
+            ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(dimensions.0),
+                rows_per_image: Some(dimensions.1),
+            },
+            extent,
+        );
+
+        let gradient_elements = dimensions.0 * dimensions.1 * 4;
+
+        let gradient_size = (size_of::<u8>() * gradient_elements as usize) as BufferAddress;
+
+        // Instantiate the buffer written to for stage 1 and read in stage 2, for gradients.
+        let gradient = self.device.create_buffer(&BufferDescriptor {
+            label: Some("Discrete Gradient Field"),
+            size: gradient_size,
+            // Buffer is used in shaders, and can be the destination or source of a copy
+            usage: BufferUsages::STORAGE | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
             mapped_at_creation: false,
         });
 
-        // Instantiate the buffer on the GPU which will be intialized with our input.
-        let gpu_buffer = self.device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("Unitialized GPU Buffer"),
-            contents: cast_slice(slice),
-            // Buffer is used in shaders, and can be the destination or source of a copy
-            usage: BufferUsages::STORAGE | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
+        // Instantiate buffer on CPU to get data
+        let receptacle = self.device.create_buffer(&BufferDescriptor {
+            label: Some("Receptacle for CPU"),
+            size: gradient_size,
+            // Buffer can be read outside of shaders, buffer can be a copy destination
+            usage: BufferUsages::MAP_READ | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
+            mapped_at_creation: false,
         });
 
         // Create a bind group which describes how the shader can access buffers assigned to it.
@@ -90,7 +136,7 @@ impl MorseSmaleSolver {
             layout: &bind_group_layout,
             entries: &[BindGroupEntry {
                 binding: 0,
-                resource: gpu_buffer.as_entire_binding(),
+                resource: gradient.as_entire_binding(),
             }],
         });
 
@@ -111,17 +157,21 @@ impl MorseSmaleSolver {
             // Provide all the descriptions of execution that we have created to the shader pass.
             shader_pass.set_pipeline(&self.pipeline);
             shader_pass.set_bind_group(0, &bind_group, &[]);
-            shader_pass.insert_debug_marker("compute collatz iterations");
+            shader_pass.insert_debug_marker("construct morse-smale complexes");
 
             // Describe the dispatch of the pass.
             // Takes 3D bounds, and spawns a compute process for each cell in the bounds.
-            shader_pass.dispatch_workgroups(input.len() as u32, 1, 1);
+            shader_pass.dispatch_workgroups(dimensions.0 - 1, dimensions.1 - 1, 1);
         }
+
+        // Sets adds copy operation to command encoder.
+        // Will copy data from storage buffer on GPU to staging buffer on CPU.
+        encoder.copy_buffer_to_buffer(&gradient, 0, &receptacle, 0, gradient_size);
 
         self.queue.submit(Some(encoder.finish()));
 
         // Note that we're not calling `.await` here.
-        let buffer_slice = cpu_buffer.slice(..);
+        let buffer_slice = receptacle.slice(..);
         // Sets the buffer up for mapping, sending over the result of the mapping back to us when it is finished.
 
         let (sender, receiver) = bounded(1);
@@ -137,7 +187,7 @@ impl MorseSmaleSolver {
             // Gets contents of buffer
             let data = buffer_slice.get_mapped_range();
             // Since contents are in bytes, this converts these bytes back to u32
-            let result: Vec<u32> = cast_slice(&data).to_vec();
+            let result: Vec<u8> = cast_slice(&data).to_vec();
 
             // With the current interface, we have to make sure all mapped views are dropped before we unmap the buffer.
             // Unmaps buffer from memory
@@ -146,7 +196,7 @@ impl MorseSmaleSolver {
             //   myPointer = NULL;
             // It effectively frees the memory
             drop(data);
-            cpu_buffer.unmap();
+            receptacle.unmap();
 
             Ok(result)
         } else {
