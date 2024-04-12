@@ -1,12 +1,11 @@
 [package]
-name = "fast_morse_smale"
+name = "fast_morse_smale_2d"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bytemuck = "1.15.0"
-flume = "0.11.0"
-image = "0.25.1"
+bytemuck = "1.15"
+flume = "0.11"
 wgpu = "0.19"
 
 [dev-dependencies]
