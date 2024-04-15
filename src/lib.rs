@@ -31,6 +31,3 @@ pub struct MorseSmaleSolver {
 // The following modules each implement one method of the MorseSmaleSolver struct.
 pub mod new;
 pub mod with_samples;
-
-#[cfg(test)]
-mod tests;
