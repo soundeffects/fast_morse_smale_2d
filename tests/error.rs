@@ -1,9 +1,3 @@
-// ░▀█▀░█▀▀░█▀▀░▀█▀░█▀▀░░░░█▀▄░█▀▀
-// ░░█░░█▀▀░▀▀█░░█░░▀▀█░░░░█▀▄░▀▀█
-// ░░▀░░▀▀▀░▀▀▀░░▀░░▀▀▀░▀░░▀░▀░▀▀▀
-//
-// This file defines tests which check for errors and ensure correctness for the library.
-
 use fast_morse_smale_2d::MorseSmaleSolver;
 use pollster::test as async_test;
 
