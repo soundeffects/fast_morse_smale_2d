@@ -9,3 +9,6 @@ Timing testing against [https://github.com/sci-visus/MSCEER/](https://github.com
 
 ## Tests
 If you wish to run the Python scripts which generate the testing data and visualize results, please install the requirements listed in `tests/requirements.txt`, as well as installing the `morse_smale` Python package from [https://github.com/uncommoncode/morse_smale](https://github.com/uncommoncode/morse_smale). You will need to install `wheel` using pip directly (not included in `requirements.txt`) and patch line 15 of `src/_cpy_morse_smale.pyx` to use `int` instead of `np.int`. (I have not had the time to create the patch myself, I simply edited the code manually.)
+
+## Potential Improvements
+- Could use bilinear filtering when getting the value at a triangulation vertex, instead of the average of the corner values

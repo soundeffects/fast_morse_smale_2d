@@ -1,0 +1,15 @@
+Path, Name, X, Y, Z
+blunt_fin_256x128x64_uint8.raw, blunt_fin, 256, 128, 64
+engine_256x256x128_uint8.raw, engine, 256, 256, 128
+frog_256x256x44_uint8.raw, frog, 256, 256, 44
+fuel_64x64x64_uint8.raw, fuel, 64, 64, 64
+hydrogen_atom_128x128x128_uint8.raw, hydrogen_atom, 128, 128, 128
+lobster_301x324x56_uint8.raw, lobster, 301, 324, 56
+marschner_lobb_41x41x41_uint8.raw, marschner_lobb, 41, 41, 41
+mri_ventricles_256x256x124_uint8.raw, mri_ventricles, 256, 256, 124
+neghip_64x64x64_uint8.raw, neghip, 64, 64, 64
+nucleon_41x41x41_uint8.raw, nucleon, 41, 41, 41
+shockwave_64x64x512_uint8.raw, shockwave, 64, 64, 512
+silicium_98x34x34_uint8.raw, silicium, 98, 34, 34
+tooth_103x94x161_uint8.raw, tooth, 103, 94, 161
+vis_male_128x256x256_uint8.raw, vis_male, 128, 256, 256
